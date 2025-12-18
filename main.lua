@@ -3,42 +3,54 @@
 
 local sv = { x = 30, y = 40, w = 220, h = 220 }
 local hue = { x = 270, y = 40, w = 20, h = 220 }
-local valueInput = {
-    x = 310,
-    y = 160,
-    w = 50,
+local rgbInput = {
+    x = 30,
+    y = 270,
+    w = 250,
     h = 24,
     active = false,
     text = ""
 }
 
-local color = {
-    h = 0.0,  -- 0..1
-    s = 1.0,  -- 0..1
-    v = 1.0,  -- 0..1
-    a = 1.0
-}
 
-local copyBtn = {
-    x = 310,
-    y = 100,   -- preview.y + preview.h + spacing
-    w = 50,
-    h = 50,
-    hovered = false
-}
-
-
+local color = { h = 0.0, s = 1.0, v = 1.0, a = 1.0 }
+local copyBtn = { x = 310, y = 100, w = 50, h = 50, hovered = false }
 local svCanvas
 local hueCanvas
-
 local draggingSV = false
 local draggingHue = false
 
-------------------------------------------------------------
--- Utilities
-------------------------------------------------------------
 local function clamp(v, min, max)
     return math.max(min, math.min(max, v))
+end
+local function rgb_to_hsv(r, g, b)
+    local max = math.max(r, g, b)
+    local min = math.min(r, g, b)
+    local delta = max - min
+
+    local h, s, v
+    v = max
+
+    if max == 0 then
+        s = 0
+    else
+        s = delta / max
+    end
+
+    if delta == 0 then
+        h = 0
+    elseif max == r then
+        h = ((g - b) / delta) % 6
+    elseif max == g then
+        h = ((b - r) / delta) + 2
+    else
+        h = ((r - g) / delta) + 4
+    end
+
+    h = h / 6
+    if h < 0 then h = h + 1 end
+
+    return h, s, v
 end
 
 local function hsv_to_rgb(h, s, v)
@@ -62,9 +74,7 @@ local function hsv_to_rgb(h, s, v)
     return r, g, b
 end
 
-------------------------------------------------------------
 -- Canvas generation
-------------------------------------------------------------
 local function generateHueCanvas()
     hueCanvas = love.graphics.newCanvas(hue.w, hue.h)
     love.graphics.setCanvas(hueCanvas)
@@ -95,14 +105,9 @@ local function generateSVCanvas()
 
     love.graphics.setCanvas()
 end
-
-------------------------------------------------------------
--- LÖVE callbacks
-------------------------------------------------------------
 function love.load()
     love.window.setTitle("HSV Color Picker (Normalized)")
     love.window.setMode(380, 340, { resizable = false })
-
     generateHueCanvas()
     generateSVCanvas()
 end
@@ -112,7 +117,7 @@ function love.update(dt)
     copyBtn.hovered =
         mx >= copyBtn.x and mx <= copyBtn.x + copyBtn.w and
         my >= copyBtn.y and my <= copyBtn.y + copyBtn.h
-    if draggingSV and not valueInput.active then
+    if draggingSV and not rgbInput.active then
         color.s = clamp((mx - sv.x) / sv.w, 0, 1)
         color.v = clamp(1 - (my - sv.y) / sv.h, 0, 1)
     end
@@ -187,70 +192,70 @@ function love.draw()
         "center"
     )
     -- Value input field
-    love.graphics.setColor(valueInput.active and 0.2 or 0.15, 0.15, 0.15)
+    love.graphics.setColor(rgbInput.active and 0.2 or 0.15, 0.15, 0.15)
         love.graphics.rectangle(
         "fill",
-        valueInput.x, valueInput.y,
-        valueInput.w, valueInput.h,
+        rgbInput.x, rgbInput.y,
+        rgbInput.w, rgbInput.h,
         4, 4
     )
 
     love.graphics.setColor(1,1,1)
     love.graphics.rectangle(
         "line",
-        valueInput.x, valueInput.y,
-        valueInput.w, valueInput.h,
+        rgbInput.x, rgbInput.y,
+        rgbInput.w, rgbInput.h,
         4, 4
     )
-
-    local displayText = valueInput.active and valueInput.text or string.format("%.3f", color.v)
+    --[
+        -- local r, g, b = hsv_to_rgb(color.h, color.s, color.v)
+        local txt = string.format(
+            "( %.3f, %.3f, %.3f, %.3f )",
+            r, g, b, color.a
+        )
+    --]
+    
+    local displayText = rgbInput.active and rgbInput.text or
+        string.format("( %.3f, %.3f, %.3f, %.3f )", r, g, b, color.a)
+        
     love.graphics.printf(
         displayText,
-        valueInput.x,
-        valueInput.y + 5,
-        valueInput.w,
+        rgbInput.x,
+        rgbInput.y + 5,
+        rgbInput.w,
         "center"
     )
 
     love.graphics.setColor(0.7,0.7,0.7)
-    love.graphics.print("V", valueInput.x - 14, valueInput.y + 4)
-
-
-    -- -- Output
-    -- local output = string.format(
-    --     "( %.3f, %.3f, %.3f, %.3f )",
-    --     r, g, b, color.a
-    -- )
-    
+    -- love.graphics.print("V", rgbInput.x - 14, rgbInput.y + 4)
+    love.graphics.print("RGB", rgbInput.x - 30, rgbInput.y + 4)
 
     love.graphics.setColor(0.1, 0.1, 0.1)
     love.graphics.rectangle("fill", 30, 300, 330, 30, 6, 6)
 
     love.graphics.setColor(1, 1, 1)
-    -- love.graphics.printf(output, 30, 308, 330, "center")
-
-    love.graphics.setColor(0.7, 0.7, 0.7)
-    -- love.graphics.print("Press C to copy", 250, 10)
 end
 
 function love.textinput(t)
-    if not valueInput.active then return end
+    if not rgbInput.active then return end
 
     if t:match("[%d%.]") then
-        valueInput.text = valueInput.text .. t
+        rgbInput.text = rgbInput.text .. t
     end
 end
 
 function love.mousepressed(x, y)
     -- Activate Value input
-    if x >= valueInput.x and x <= valueInput.x + valueInput.w
-        and y >= valueInput.y and y <= valueInput.y + valueInput.h then
-            valueInput.active = true
-            valueInput.text = string.format("%.3f", color.v)
-            return
+    if x >= rgbInput.x and x <= rgbInput.x + rgbInput.w
+    and y >= rgbInput.y and y <= rgbInput.y + rgbInput.h then
+        local r, g, b = hsv_to_rgb(color.h, color.s, color.v)
+        rgbInput.active = true
+        rgbInput.text = string.format("%.3f, %.3f, %.3f, %.3f", r, g, b, color.a)
+        return
     else
-        valueInput.active = false
+        rgbInput.active = false
     end
+
 
     if x >= copyBtn.x and x <= copyBtn.x + copyBtn.w
         and y >= copyBtn.y and y <= copyBtn.y + copyBtn.h then
@@ -262,13 +267,14 @@ function love.mousepressed(x, y)
         love.system.setClipboardText(txt)
         return
     end
+
     if x >= sv.x and x <= sv.x + sv.w
-    and y >= sv.y and y <= sv.y + sv.h then
+        and y >= sv.y and y <= sv.y + sv.h then
         draggingSV = true
     end
 
     if x >= hue.x and x <= hue.x + hue.w
-    and y >= hue.y and y <= hue.y + hue.h then
+        and y >= hue.y and y <= hue.y + hue.h then
         draggingHue = true
     end
 end
@@ -278,33 +284,23 @@ function love.mousereleased()
     draggingHue = false
 end
 function love.keypressed(key)
-    if valueInput.active then
+    if rgbInput.active then
         if key == "return" then
-            local v = tonumber(valueInput.text)
+            local v = tonumber(rgbInput.text)
             if v then
                 color.v = clamp(v, 0, 1)
             end
-            valueInput.active = false
+            rgbInput.active = false
             return
 
         elseif key == "escape" then
-            valueInput.active = false
+            rgbInput.active = false
             return
 
         elseif key == "backspace" then
-            valueInput.text = valueInput.text:sub(1, -2)
+            rgbInput.text = rgbInput.text:sub(1, -2)
             return
         end
-    end
-
-    -- existing copy shortcut
-    if key == "c" then
-        local r, g, b = hsv_to_rgb(color.h, color.s, color.v)
-        local txt = string.format(
-            "{ %.3f, %.3f, %.3f, %.3f }",
-            r, g, b, color.a
-        )
-        love.system.setClipboardText(txt)
     end
 end
 
